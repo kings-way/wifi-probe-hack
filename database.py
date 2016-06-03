@@ -6,7 +6,6 @@ import re
 
 # make these available across this file
 conn_main = sqlite3.connect('main.sqlite')
-# conn_main = sqlite3.connect(':memory:')
 cursor_main = conn_main.cursor()
 conn_oui = sqlite3.connect('oui.sqlite')
 cursor_oui = conn_oui.cursor()

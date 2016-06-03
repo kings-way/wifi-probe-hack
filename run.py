@@ -8,6 +8,7 @@ from multiprocessing import Process
 import database
 import os
 import sys
+import getopt
 
 
 def get_mac(raw_data):
@@ -111,7 +112,7 @@ def capture(if_mon):
         # Here, we call database.operate() to add some record.
         # Kinds of filter works will be done there.
 
-        if len(sys.argv) > 1 and sys.argv[1] == 'test':
+        if flag_test:
             print local_time[10:], mac,  database.get_vendor(mac), ssid
         else:
             database.operate(mac, model, ssid, unix_time, local_time)
@@ -158,23 +159,48 @@ def display(refresh_interval=1, time_span=600, limit=100):
 
 if __name__ == '__main__':
     database.init_tables()
-    interface = 'wlan0'
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'i:h', ["time=", "interval=", "limit=",  "help", "test"])
+    except getopt.GetoptError:
+        print "Error in args"
+        quit(0)
+
+    flag_test = False
+    time_span = 600
+    refresh_interval = 9
+    limit = 50
+
+    for opt, value in opts:
+        if opt == '-i':
+            interface = value
+        elif opt == '--time':
+            time_span = int(value)
+        elif opt == '--interval':
+            refresh_interval = int(value)
+        elif opt == '--limit':
+                limit = int(value)
+        elif opt in ('-h', '--help'):
+            print "######## HELP ########"
+            quit(0)
+        elif opt == '--test':
+            flag_test = True
 
     p_cap = Process(target=capture, args=[interface])
     p_cap.daemon = True
     p_cap.start()
 
-    if len(sys.argv) > 1 and sys.argv[1] == 'test':
-        p_cap.join()
 
+    if flag_test:
+        p_cap.join()
     else:
         # start the display process
-        p_display = Process(target=display, args=(1, 600, 50))
+        p_display = Process(target=display, args=(refresh_interval, time_span, limit))
         p_display.daemon = True
         p_display.start()
 
         # Wait until the p_cap process exits
         p_cap.join()
+        database.destroy()
 
 
 
