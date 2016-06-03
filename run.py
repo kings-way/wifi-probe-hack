@@ -32,16 +32,22 @@ def get_ssid(raw_data):
         return "Null"
     else:
         try:
-            output = raw_data[2:2+length].decode('utf8')
+            ssid = raw_data[2:2+length].decode('utf8')
         except UnicodeDecodeError, info:
-            output = raw_data[2:2+length].decode('gbk')
-        return output
+            sys.stderr.write("Error: SSID decode with utf8 Failed, " + str(info) + '\n')
+            try:
+                ssid = raw_data[2:2+length].decode('gbk')
+            except UnicodeDecodeError, info:
+                sys.stderr.write("Error: SSID decode with gbk Failed, " + str(info) + '\n')
+                raise OSError
+        return ssid
 
 
 def get_model(raw_data):
+    # This function get the device model from the packet.
+    # But I do not have enough energy to analyse the whole packet in detail
+    # I just search the packet for tag magic number. So, there could be some mistakes finding out the device model.
 
-    # This function get the device model from the packet. But I do not have the energy to analyse the whole packet in detail
-    # I just search the packet for tag magic number. So, there must be some mistakes....
     # Tag: 0x1021, Manufacturer
     # Tag: 0x1023, Model Name
     # Tag: 0x1024, Model Number
@@ -50,23 +56,15 @@ def get_model(raw_data):
     raw_data_hex = raw_data.encode('hex')
     tag_1021 = raw_data_hex.find('1021')
     tag_1023 = raw_data_hex.find('1023')
-    tag_1024 = raw_data_hex.find('1024')
+    # tag_1024 = raw_data_hex.find('1024')
 
-    if tag_1021>0 and tag_1021 < tag_1023:
+    if 0 < tag_1021 < tag_1023:
         vendor_length = int(raw_data_hex[tag_1021+4:tag_1021+8], 16)
         vendor_name = raw_data[(tag_1021+8)/2:(tag_1021+8)/2+vendor_length].decode('utf8')
 
         model_length = int(raw_data_hex[tag_1023+4:tag_1023+8], 16)
         model_name = raw_data[(tag_1023+8)/2:(tag_1023+8)/2+model_length].decode('utf8')
 
-        # model_num_length = int(raw_data_hex[tag_1024+4:tag_1024+8], 16)
-        # model_num_name = raw_data[(tag_1024+8)/2:(tag_1024+8)/2+model_num_length].decode('utf8')
-        #
-        # print "#####", raw_data_hex[tag_1023+4:tag_1023+8], model_length, "##"
-        # print "#####", vendor_name
-        # print model_name
-        # print model_num_name
-        # print "#####", raw_data_hex, "##"
         if model_name.find(vendor_name) > -1:
             return model_name
         else:
@@ -90,17 +88,33 @@ def capture(if_mon):
         local_time = time.localtime(unix_time)
         local_time = time.strftime('%Y/%m/%d %X', local_time)
         raw_data = cStringIO.StringIO(packet_buf).read()
-        MAC = get_mac(raw_data[46:52])
-        Model = get_model(raw_data[60:])
-        SSID = get_ssid(raw_data[60:])
+        # compute the start of src mac address by the header length of packet
+        # [Header revision], 1 Byte
+        # [Header pad], 1 Byte
+        # [Header length], 2 Bytes, mostly use the first byte
+        # [Header body], xxx Bytes
+        # [SubType and flags], 4 Bytes
+        # [Dest addr], 6 Bytes, usually ff:ff:ff:ff:ff:ff
+        # [Src addr], 6 Bytes
+        # [Broadcast], 6 Bytes, usually ff:ff:ff:ff:ff:ff
+        # [Sequence number], 2 Bytes
+        # [Tag : SSID], 1 Byte
+        # [Tag length], 1 Byte
+        # [SSID body], xxx Bytes
+        header_length = int(raw_data[2].encode('hex'), 16)
+        mac_start_pos = 2 + 2 + header_length + 6
+
+        mac = get_mac(raw_data[mac_start_pos:mac_start_pos+6])
+        model = get_model(raw_data[mac_start_pos+12+2:])
+        ssid = get_ssid(raw_data[mac_start_pos+12+2:])
 
         # Here, we call database.operate() to add some record.
         # Kinds of filter works will be done there.
 
-        if sys.argv[1] == 'test':
-            print local_time[10:], MAC,  database.get_vendor(MAC), SSID
+        if len(sys.argv) > 1 and sys.argv[1] == 'test':
+            print local_time[10:], mac,  database.get_vendor(mac), ssid
         else:
-            database.operate(MAC, Model, SSID, unix_time, local_time)
+            database.operate(mac, model, ssid, unix_time, local_time)
 
 
 def display(refresh_interval=1, time_span=600, limit=100):
@@ -139,25 +153,23 @@ def display(refresh_interval=1, time_span=600, limit=100):
 
             # print without the last ','
             print ssid_all.strip()[:-1]
-        # print "------------------------- %s ----------------------------" % time.time()
         time.sleep(refresh_interval)
-
 
 
 if __name__ == '__main__':
     database.init_tables()
-    interface = 'wlan1'
+    interface = 'wlan0'
 
     p_cap = Process(target=capture, args=[interface])
     p_cap.daemon = True
     p_cap.start()
 
-    if sys.argv[1] == 'test':
+    if len(sys.argv) > 1 and sys.argv[1] == 'test':
         p_cap.join()
 
     else:
         # start the display process
-        p_display = Process(target=display, args=(1, 600, 40))
+        p_display = Process(target=display, args=(1, 600, 50))
         p_display.daemon = True
         p_display.start()
 

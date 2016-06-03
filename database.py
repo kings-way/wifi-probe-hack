@@ -67,7 +67,7 @@ def operate(mac, model, ssid, unix_time, local_time):
 
     # if the (mac, ssid) pair has been recorded, then update the unix_time and local_time
     else:
-        cursor_main.execute('update t_station set unix_time=?,local_time=?', (unix_time, local_time))
+        cursor_main.execute('update t_station set unix_time=?,local_time=? where mac=?', (unix_time, local_time, mac))
     conn_main.commit()
 
 
