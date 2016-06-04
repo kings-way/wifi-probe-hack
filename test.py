@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-def fun():
-    global  i
-    i = 2
-    print "in fun():", i
+from pythonwifi.iwlibs import Wireless
+import os
 
 if __name__ == "__main__":
-    i = 1
-    print "in main():", i
-    fun()
-    print "in main():", i
+    interface = "wlan1"
+    wifi = Wireless(interface)
+    print wifi.getMode()
+    print wifi.getMode()
+    wifi.setMode('Monitor')
+    print wifi.getMode()

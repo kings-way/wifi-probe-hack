@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # encoding=utf-8
-
+import os
 import time
 import pcap
 import cStringIO
 from multiprocessing import Process
 import database
 import sys
+import signal
 import getopt
 import decode
 
@@ -57,6 +58,7 @@ def display():
 
     # Sleep for 1 seconds to make time for p_cap process exit if it runs into error
     time.sleep(1)
+
     while True:
         #  '\033c' can clear output in VT compatible terminal, it works better than the shell command 'clear'
         print '\033c'
@@ -87,20 +89,50 @@ def display():
         time.sleep(refresh_interval)
 
 
+def set_interface(if_name, flag):
+    # We make it through tools in linux.
+    # Although there is a lib called python-wifi supplying some operations on wlan interfaces,
+    # but it does not support the up/down operation on interfaces.
+
+    # we are not using try-except because the most errors may have already handled by the commands themselves
+    if flag:
+        return_value = os.system('/sbin/ifconfig ' + if_name + ' down')
+        return_value += os.system('/sbin/iwconfig ' + if_name + ' mode Monitor')
+        return_value += os.system('/sbin/ifconfig ' + if_name + ' up')
+    else:
+        return_value = os.system('/sbin/ifconfig ' + interface + ' down')
+        return_value += os.system('/sbin/iwconfig ' + interface + ' mode Managed')
+        return_value += os.system('/sbin/ifconfig ' + interface + ' up')
+    if return_value != 0:
+        print "\tFailed to prepare the interface..."
+        sys.exit(-1)
+
+
+
+def signal_handler(signal, frame):
+    print "Exiting now"
+    p_cap.terminate()
+    p_display.terminate()
+    set_interface(interface, False)
+    database.destroy()
+
+
 if __name__ == '__main__':
-    # some global variables
+
+    # refresh_interval: int or float, refresh output interval (seconds)
+    # time_span:        int, used to filter the stations that seen in the time_span (seconds)
+    # limit:            int, used to limit rows of output
+    # flag_test:        boolean, for test use only
+
+    # TODO: finish the help menu
+    # TODO: check if every necessary options provided
+
     refresh_interval = 2
     time_span = 600
     limit = 50
     flag_test = False
-    """
-        refresh_interval: int or float, refresh output interval (seconds)
-        time_span: int, used to filter the stations that seen in the time_span (seconds)
-        limit: int, used to limit rows of output
-        flag_test: boolean, for test use only
-    """
-    database.init_tables()
 
+    database.init_tables()
     try:
         opts, args = getopt.getopt(sys.argv[1:], 'i:h', ["time=", "interval=", "limit=",  "help", "test"])
     except getopt.GetoptError:
@@ -117,25 +149,24 @@ if __name__ == '__main__':
         elif opt == '--limit':
                 limit = int(value)
         elif opt in ('-h', '--help'):
-            # TODO： Help Menu
             print "######## HELP ########"
             quit(0)
         elif opt == '--test':
             flag_test = True
 
+    set_interface(interface, True)
     p_cap = Process(target=capture, args=[interface])
     p_cap.daemon = True
     p_cap.start()
 
-    if flag_test:
-        p_cap.join()
-    else:
+    if not flag_test:
         # start the display process
         p_display = Process(target=display)
         p_display.daemon = True
         p_display.start()
 
-        # Wait until the p_cap process exits
-        p_cap.join()
-        database.destroy()
+    # register signal handle function and wait for a signal
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.pause()
+
 
