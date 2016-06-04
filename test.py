@@ -10,3 +10,4 @@ if __name__ == "__main__":
     print wifi.getMode()
     wifi.setMode('Monitor')
     print wifi.getMode()
+
