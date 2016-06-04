@@ -90,18 +90,20 @@ def display():
 
 
 def set_interface(if_name, flag):
-    # We make it through tools in linux.
-    # Although there is a lib called python-wifi supplying some operations on wlan interfaces,
-    # but it does not support the up/down operation on interfaces.
-
-    # we are not using try-except because the most errors may have already handled by the commands themselves
+    # Notice:
+    # 1.  Although there is a lib called python-wifi supplying some operations on wlan interfaces,
+    #     but it does not support the up/down operation on interfaces.
+    # 2.  Using iw instead of iwconfig, because iwconfig does not work well with mac80211 subsystem
+    # 3.  Not using try-except because most errors may have already handled by the commands themselves
     if flag:
         return_value = os.system('/sbin/ifconfig ' + if_name + ' down')
-        return_value += os.system('/sbin/iwconfig ' + if_name + ' mode Monitor')
+        # return_value += os.system('/sbin/iwconfig ' + if_name + ' mode Monitor')
+        return_value += os.system('/sbin/iw ' + if_name + ' set type monitor')
         return_value += os.system('/sbin/ifconfig ' + if_name + ' up')
     else:
         return_value = os.system('/sbin/ifconfig ' + interface + ' down')
-        return_value += os.system('/sbin/iwconfig ' + interface + ' mode Managed')
+        # return_value += os.system('/sbin/iwconfig ' + interface + ' mode Managed')
+        return_value += os.system('/sbin/iw ' + interface + ' set type managed')
         return_value += os.system('/sbin/ifconfig ' + interface + ' up')
     if return_value != 0:
         print "\tFailed to prepare the interface..."
