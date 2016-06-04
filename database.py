@@ -4,7 +4,7 @@
 import sqlite3
 import re
 
-# make these available across this file
+# global variables, make these available across this file
 conn_main = sqlite3.connect('main.sqlite')
 cursor_main = conn_main.cursor()
 conn_oui = sqlite3.connect('oui.sqlite')
@@ -12,6 +12,8 @@ cursor_oui = conn_oui.cursor()
 
 
 def init_tables():
+    global conn_main
+    global cursor_main
 
     # Table t_station used to store information of each station(client)
     # Not include the probe ssid
@@ -33,17 +35,24 @@ def init_tables():
 
 
 def get_recent_station(now_time, time_span, limit):
+    global conn_main
+    global cursor_main
     cursor_main.execute('select * from t_station where ((%d - unix_time) < %d) and vendor != "Unknown" order by unix_time DESC limit %d ' % (now_time, time_span, limit))
     conn_main.commit()
     return cursor_main.fetchall()
 
 
 def get_allssid_by_mac(mac):
+    global conn_main
+    global cursor_main
     cursor_main.execute('select ssid from t_ssid where station_mac=?', [mac])
     conn_main.commit()
-    return  cursor_main.fetchall()
+    return cursor_main.fetchall()
+
 
 def operate(mac, model, ssid, unix_time, local_time):
+    global conn_main
+    global cursor_main
 
     # if this mac not recorded ever, then insert into t_station and t_ssid
     if not isInStation(mac):
@@ -60,9 +69,8 @@ def operate(mac, model, ssid, unix_time, local_time):
 
     # if this mac has been recorded in database,
     # but the (mac, ssid) pair has not been recorded, then insert into t_ssid
-    elif not isInSsid(mac, ssid):
-        if ssid != "Null":
-            cursor_main.execute('insert into t_ssid values(?,?)', (mac, ssid))
+    elif not isInSsid(mac, ssid) and ssid != "Null":
+        cursor_main.execute('insert into t_ssid values(?,?)', (mac, ssid))
 
     # if the (mac, ssid) pair has been recorded, then update the unix_time and local_time
     else:
@@ -71,6 +79,8 @@ def operate(mac, model, ssid, unix_time, local_time):
 
 
 def isInStation(mac):
+    global conn_main
+    global cursor_main
     cursor_main.execute('select * from t_station where mac=?', [mac])
     conn_main.commit()
     if not cursor_main.fetchall():
@@ -80,6 +90,8 @@ def isInStation(mac):
 
 
 def isInSsid(mac, ssid):
+    global conn_main
+    global cursor_main
     cursor_main.execute('select * from t_ssid where station_mac=? and ssid=?', (mac, ssid))
     conn_main.commit()
     if not cursor_main.fetchall():
@@ -89,6 +101,8 @@ def isInSsid(mac, ssid):
 
 
 def get_vendor(mac):
+    global conn_oui
+    global cursor_oui
     vendor = "Unknown"
     mac = mac.replace(":", "")
     mac = mac[0:6]
@@ -101,6 +115,8 @@ def get_vendor(mac):
 
 
 def gengrate_oui_db():
+    global conn_oui
+    global cursor_oui
     # This function generate oui database from oui files
     cursor_oui.execute('DROP TABLE  IF EXISTS vendor')
     cursor_oui.execute('CREATE TABLE IF NOT EXISTS vendor('
@@ -125,18 +141,9 @@ def gengrate_oui_db():
                 cursor_oui.execute('insert into vendor values(?,?)', (vendor_mac, vendor_name))
                 conn_oui.commit()
 
+
 def destroy():
+    global conn_main
+    global conn_oui
     conn_main.close()
     conn_oui.close()
-
-
-# if __name__ == "__main__":
-#     get_allssid_by_mac('38BC1AAD5C83')
-#
-#     quit()
-
-#     init_tables()
-#     add('AABBCC112255', 'AAA Tech Co.Ltd', '2016/02/02 18:09:10', '测试wifi'.decode('utf8'))
-#     destroy()
-
-
