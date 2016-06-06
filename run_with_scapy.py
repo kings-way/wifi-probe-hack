@@ -2,14 +2,14 @@
 # encoding=utf-8
 import os
 import time
-import pcap
-import cStringIO
 from multiprocessing import Process
 import database
 import sys
 import signal
 import getopt
 import decode
+from scapy.layers.dot11 import Dot11Elt
+import scapy.all as scapy
 
 
 def format_mac(mac):
@@ -20,27 +20,16 @@ def format_mac(mac):
     return output[0:-1]
 
 
-def capture(if_mon):
-    global flag_test
-    """
-    :type if_mon: string,  name of the interface operating in monitor mode
-    """
-    try:
-        pc = pcap.pcap(if_mon)
-        pc.setfilter('subtype probereq')
-    except Exception, info:
-        sys.stderr.write("\nError: " + str(info) + "\n")
-        quit(0)
-
-    for unix_time, packet_buf in pc:
-        unix_time = int(unix_time)
+def on_receiving(packet):
+    if Dot11Elt in packet:
+        ssid = packet[Dot11Elt].info
+        if not ssid:
+            ssid = 'Null'
+        mac = packet.addr2.upper().replace(':', '')
+        unix_time = int(time.time())
         local_time = time.localtime(unix_time)
         local_time = time.strftime('%Y/%m/%d %X', local_time)
-        raw_data = cStringIO.StringIO(packet_buf).read()
-
-        mac = decode.get_mac(raw_data)
-        model = decode.get_model(raw_data)
-        ssid = decode.get_ssid(raw_data)
+        model = decode.get_model(str(packet))
 
         # Here, we call database.operate() to add some record.
         # Kinds of filter works will be done there.
@@ -49,6 +38,19 @@ def capture(if_mon):
             database.operate(mac, model, ssid, unix_time, local_time)
         else:
             database.operate(mac, model, ssid, unix_time, local_time)
+
+
+def capture(if_mon):
+    global flag_test
+    """
+    :type if_mon: string,  name of the interface operating in monitor mode
+    """
+    try:
+        scapy.conf.iface=if_mon
+        scapy.sniff(iface=if_mon, prn=on_receiving, store=0, filter="subtype probereq")
+    except Exception, info:
+        sys.stderr.write("\nError: " + str(info) + "\n")
+        quit(0)
 
 
 def display():
@@ -94,7 +96,7 @@ def set_interface(if_name, flag):
     # 1.  Although there is a lib called python-wifi supplying some operations on wlan interfaces,
     #     but it does not support the up/down operation on interfaces.
     # 2.  Using iw instead of iwconfig, because iwconfig does not work well with mac80211 subsystem
-    # 3.  Not using try-except because most errors may have already handled by the commands themselves
+    # 3.  Not using try-except because the errors may have already handled by system commands
     if flag:
         return_value = os.system('/sbin/ifconfig ' + if_name + ' down')
         # return_value += os.system('/sbin/iwconfig ' + if_name + ' mode Monitor')
@@ -108,7 +110,6 @@ def set_interface(if_name, flag):
     if return_value != 0:
         print "\tFailed to prepare the interface..."
         sys.exit(-1)
-
 
 
 def signal_handler(signal, frame):

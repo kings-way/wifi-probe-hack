@@ -53,12 +53,12 @@ def get_ssid(raw_data):
     else:
         try:
             ssid = raw_data[2:2+length].decode('utf8')
-        except UnicodeDecodeError, info:
-            sys.stderr.write("Error: Failed to decode SSID with UTF8\nDetail:" + str(info) + '\n')
+        except UnicodeDecodeError, info1:
             try:
                 ssid = raw_data[2:2+length].decode('gbk')
-            except UnicodeDecodeError, info:
-                sys.stderr.write("Error: Failed to decode SSID with GBK\nDetail:" + str(info) + '\n')
+            except UnicodeDecodeError, info2:
+                sys.stderr.write("Error: Failed to decode SSID with UTF8\nDetail:" + str(info1) + '\n')
+                sys.stderr.write("Error: Failed to decode SSID with GBK\nDetail:" + str(info2) + '\n')
                 sys.exit(-1)
         return ssid
 
