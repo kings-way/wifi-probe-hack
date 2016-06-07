@@ -4,7 +4,7 @@ import os
 import time
 import pcap
 from multiprocessing import Process
-import database
+from database import Database
 import sys
 import signal
 import getopt
@@ -41,13 +41,13 @@ def capture(if_mon):
         model = decode.get_model(raw_data)
         ssid = decode.get_ssid(raw_data)
 
-        # Here, we call database.operate() to add some record.
+        # Here, we call db.operate() to add some record.
         # Kinds of filter works will be done there.
         if flag_test:
-            print local_time[10:], mac,  database.get_vendor(mac), ssid
-            database.operate(mac, model, ssid, unix_time, local_time)
+            print local_time[10:], mac,  db.get_vendor(mac), ssid
+            db.operate(mac, model, ssid, unix_time, local_time)
         else:
-            database.operate(mac, model, ssid, unix_time, local_time)
+            db.operate(mac, model, ssid, unix_time, local_time)
 
 
 def display():
@@ -64,7 +64,7 @@ def display():
         print "################################################# %s ##############################################" \
               % time.strftime('%X', time.localtime(time.time()))
         print "%-13s%-20s%-55s%-80s\n" % ("[ Last Seen ]", "[ Source MAC ]", "[ Manufacturer ]",  "[ Probe SSID ]")
-        rows = database.get_recent_station(int(time.time()), time_span, limit)
+        rows = db.get_recent_station(int(time.time()), time_span, limit)
         for row in rows:
             # if model does not exist, then we display vendor instead
             if not row[2]:
@@ -76,7 +76,7 @@ def display():
             # display the ssid takes some more code ....
             count = 0
             ssid_all = ""
-            for ssid in database.get_allssid_by_mac(row[0]):
+            for ssid in db.get_allssid_by_mac(row[0]):
                 ssid_all += ssid[0]+","
                 count += 1
                 # display 6 ssid in one line
@@ -114,7 +114,7 @@ def signal_handler(signal, frame):
     p_cap.terminate()
     p_display.terminate()
     set_interface(interface, False)
-    database.destroy()
+    db.destroy()
 
 
 if __name__ == '__main__':
@@ -132,7 +132,7 @@ if __name__ == '__main__':
     limit = 50
     flag_test = False
 
-    database.init_tables()
+    db = Database()
     try:
         opts, args = getopt.getopt(sys.argv[1:], 'i:h', ["time=", "interval=", "limit=",  "help", "test"])
     except getopt.GetoptError:

@@ -1,5 +1,5 @@
 *.pyc
-test.*
+test*
 main.sqlite
 .idea/
 scapy-fakeap/
