@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # encoding=utf-8
 import os
+import commands
 import time
 from multiprocessing import Process
 from database import Database
@@ -50,14 +51,14 @@ def on_receiving(packet):
             db.operate(mac, model, ssid, unix_time, local_time)
 
 
-def capture(if_mon):
+def capture(mon_interface):
     global flag_test
     """
     :type if_mon: string,  name of the interface operating in monitor mode
     """
     try:
-        scapy.conf.iface=if_mon
-        scapy.sniff(iface=if_mon, prn=on_receiving, store=0, filter="subtype probereq")
+        scapy.conf.iface=mon_interface
+        scapy.sniff(iface=mon_interface, prn=on_receiving, store=0, filter="subtype probereq")
     except Exception, info:
         sys.stderr.write("\nError: " + str(info) + "\n")
         quit(0)
@@ -101,22 +102,39 @@ def display():
         time.sleep(refresh_interval)
 
 
-def set_interface(if_name, flag):
+def set_interface(interface, flag):
+    mon_interface = interface + '_mon'
     # Notice:
     # 1.  Although there is a lib called python-wifi supplying some operations on wlan interfaces,
     #     but it does not support the up/down operation on interfaces.
     # 2.  Using iw instead of iwconfig, because iwconfig does not work well with mac80211 subsystem
     # 3.  Not using try-except because the errors may have already handled by system commands
     if flag:
-        return_value = os.system('/sbin/ifconfig ' + if_name + ' down')
-        # return_value += os.system('/sbin/iwconfig ' + if_name + ' mode Monitor')
-        return_value += os.system('/sbin/iw ' + if_name + ' set type monitor')
-        return_value += os.system('/sbin/ifconfig ' + if_name + ' up')
+        return_value = os.system('/sbin/iw ' + interface + ' interface add ' + mon_interface + ' type monitor')
+
+        # sleep for 1 seconds and then check whether monitor mode set successfully
+        time.sleep(1)
+        if commands.getoutput('/sbin/iw ' + mon_interface + ' info').find('monitor') == -1:
+
+            choice = raw_input('Failed to set ' + mon_interface + 'into monitor mode. Are you sure to kill NetworkManager (Y/n) ?')
+            if choice == 'n':
+                os.system('/sbin/iw ' + mon_interface + ' del')
+                print 'Exiting now...'
+                sys.exit(-1)
+            else:
+                os.system('service network-manager stop')
+                # now set monitor mode again
+                return_value += os.system('/sbin/iw ' + mon_interface + ' set type monitor')
+        return_value += os.system('/sbin/ifconfig ' + mon_interface + ' up')
+
     else:
-        return_value = os.system('/sbin/ifconfig ' + interface + ' down')
-        # return_value += os.system('/sbin/iwconfig ' + interface + ' mode Managed')
-        return_value += os.system('/sbin/iw ' + interface + ' set type managed')
-        return_value += os.system('/sbin/ifconfig ' + interface + ' up')
+        print "restore network...."
+        return_value = os.system('/sbin/ifconfig ' + mon_interface + ' down')
+        return_value += os.system('/sbin/iw ' + mon_interface + ' del')
+
+        # I am not sure this service start command will work on other distros
+        return_value += os.system('service network-manager start')
+
     if return_value != 0:
         print "\tFailed to prepare the interface..."
         sys.exit(-1)
@@ -125,7 +143,8 @@ def set_interface(if_name, flag):
 def signal_handler(signal, frame):
     print "Exiting now"
     p_cap.terminate()
-    p_display.terminate()
+    if not flag_test:
+        p_display.terminate()
     set_interface(interface, False)
     db.destroy()
 
@@ -168,7 +187,8 @@ if __name__ == '__main__':
             flag_test = True
 
     set_interface(interface, True)
-    p_cap = Process(target=capture, args=[interface])
+    mon_interface = interface + '_mon'
+    p_cap = Process(target=capture, args=[mon_interface])
     p_cap.daemon = True
     p_cap.start()
 
