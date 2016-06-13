@@ -4,7 +4,7 @@ import time
 import commands
 
 
-def set_interface(interface, flag):
+def set_monitor(interface, flag):
     mon_interface = interface + '_mon'
     # Notice:
     # 1.  Although there is a lib called python-wifi supplying some operations on wlan interfaces,

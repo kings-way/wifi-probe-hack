@@ -4,7 +4,7 @@
 import time
 from multiprocessing import Process
 from database import Database
-from interface import set_interface
+from interface import set_monitor
 from scapy.layers.dot11 import Dot11Elt
 import sys
 import signal
@@ -108,7 +108,7 @@ def signal_handler(signal, frame):
     p_cap.terminate()
     if not flag_test:
         p_display.terminate()
-    set_interface(interface, False)
+    set_monitor(interface, False)
     db.destroy()
 
 
@@ -149,7 +149,7 @@ if __name__ == '__main__':
         elif opt == '--test':
             flag_test = True
 
-    set_interface(interface, True)
+    set_monitor(interface, True)
     mon_interface = interface + '_mon'
     p_cap = Process(target=capture, args=[mon_interface])
     p_cap.daemon = True
