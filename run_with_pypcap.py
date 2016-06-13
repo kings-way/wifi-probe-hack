@@ -56,8 +56,8 @@ def display():
     global time_span
     global limit
 
-    # Sleep for 1 seconds to make time for p_cap process exit if it runs into error
-    time.sleep(1)
+    # Sleep for some seconds to make time for p_cap process exit if it runs into error
+    time.sleep(0.5)
 
     while True:
         #  '\033c' can clear output in VT compatible terminal, it works better than the shell command 'clear'

@@ -6,6 +6,10 @@ import commands
 
 def set_monitor(interface, flag):
     mon_interface = interface + '_mon'
+    tmp_file = open('/tmp/interface_name_by_wifi_probe_hack', 'w+')
+    tmp_file.write(mon_interface)
+    tmp_file.close()
+
     # Notice:
     # 1.  Although there is a lib called python-wifi supplying some operations on wlan interfaces,
     #     but it does not support the up/down operation on interfaces.
@@ -14,8 +18,8 @@ def set_monitor(interface, flag):
     if flag:
         return_value = os.system('/sbin/iw ' + interface + ' interface add ' + mon_interface + ' type monitor')
 
-        # sleep for 1 seconds and then check whether monitor mode set successfully
-        time.sleep(1)
+        # sleep for 0.5 seconds and then check whether monitor mode set successfully
+        time.sleep(0.5)
         if commands.getoutput('/sbin/iw ' + mon_interface + ' info').find('monitor') == -1:
 
             choice = raw_input('Failed to set ' + mon_interface + 'into monitor mode. Are you sure to kill NetworkManager (Y/n) ?')
