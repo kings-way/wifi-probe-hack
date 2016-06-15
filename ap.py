@@ -2,13 +2,17 @@
 # encoding=utf8
 
 import subprocess
+import getopt
+import sys
+import os
 from multiprocessing import Process
 from database import Database
+from interface import  iptables_nat
 
 
 class AP:
-    def __init__(self, mon_interface):
-        self.mon_interface = mon_interface
+    def __init__(self, mon):
+        self.mon = mon
         self.stations = []
         self.ssids = []
         self.db = Database()
@@ -76,14 +80,10 @@ class AP:
 
     def launch_airbase(self):
         # Here, we are not using os.system(), cause we do not want run it in a shell
-        subprocess.call(['./bin/airbase-ng', '--essids', '/tmp/ssid_file', self.mon_interface])
+        subprocess.call(['./bin/airbase-ng', '--essids', '/tmp/ssid_file', self.mon])
+
 
 if __name__ == '__main__':
-    tmp_file = open('/tmp/interface_name_by_wifi_probe_hack', 'r')
-    mon_interface = tmp_file.readline().strip()
-    tmp_file.close()
-
-    ap = AP(mon_interface)
     print "########################################"
     print "    Now you can do things below:\n"
     print "  ap.add_ssid('Wifi')\t\t---- Add a ssid to broadcast. "
@@ -92,4 +92,11 @@ if __name__ == '__main__':
     print "  ap.remove_station('MAC')\t---- Remove a target station..."
     print "  ap.stop()\t\t\t---- Stop the AP. Or you can just exit directly\n"
 
+    mon = raw_input('Please specific the wlan interface(wlanX?): ')
+    wan = raw_input('Please specific the interface to be used for NAT Internet Access(ethX?): ')
+    os.system('ifconfig at0 192.168.11.1/24')
+    os.system('ifconfig at0 up')
+    iptables_nat(True, 'at0', wan)
+
+    ap = AP(mon)
 

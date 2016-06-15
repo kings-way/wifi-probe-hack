@@ -150,8 +150,7 @@ if __name__ == '__main__':
             flag_test = True
 
     set_monitor(interface, True)
-    mon_interface = interface + '_mon'
-    p_cap = Process(target=capture, args=[mon_interface])
+    p_cap = Process(target=capture, args=[interface])
     p_cap.daemon = True
     p_cap.start()
 
