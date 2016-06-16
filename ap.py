@@ -2,12 +2,13 @@
 # encoding=utf8
 
 import subprocess
-import getopt
-import sys
 import os
+import sys
+import time
+import signal
 from multiprocessing import Process
 from database import Database
-from interface import  iptables_nat
+from interface import iptables_nat
 
 
 class AP:
@@ -16,7 +17,9 @@ class AP:
         self.stations = []
         self.ssids = []
         self.db = Database()
-        self.airbase_process = None
+        self.airbase_process = Process(target=self.launch_airbase)
+        self.airbase_process.daemon = True
+        self.airbase_process.start()
 
     # deduplicate the ssids
     def deduplicate_ssids(self):
@@ -25,14 +28,11 @@ class AP:
     def add_ssid(self, ssid):
         self.ssids.append(ssid)
         self.deduplicate_ssids()
-        self.start()
+        self.reload()
 
     def remove_ssid(self, ssid):
         self.ssids.remove(ssid)
-        if len(self.ssids) > 0:
-            self.start()
-        else:
-            self.stop()
+        self.reload()
 
     def add_station(self, station_mac):
         station_mac = station_mac.replace(':', '').upper()
@@ -41,7 +41,7 @@ class AP:
             self.ssids.append(i[0])
         self.deduplicate_ssids()
         self.stations.append(station_mac)
-        self.start()
+        self.reload()
 
     def remove_station(self, station_mac):
         station_mac = station_mac.replace(':', '').upper()
@@ -49,41 +49,42 @@ class AP:
         for i in all_ssid:
             self.ssids.remove(i[0])
         self.stations.remove(station_mac)
-        if len(self.ssids) > 0:
-            self.start()
-        else:
-            self.stop()
+        self.reload()
 
-    def start(self):
+    def reload(self):
         ssid_file = open('/tmp/ssid_file', 'w+')
         for i in self.ssids:
             ssid_file.write(i.encode('utf8')+'\n')
         ssid_file.close()
+        print 'pid: ', self.airbase_process.pid
 
-        # this is None when first run...
-        if self.airbase_process == None:
-            print "the process is None"
-            self.airbase_process = Process(target=self.launch_airbase)
-
-        elif self.airbase_process.is_alive():
-            # We are going to kill the former process
-            # But the terminate() function does not work and the exitcode always be -15...
-            # self.airbase_process.terminate()
-            self.stop()
-            self.airbase_process = Process(target=self.launch_airbase)
-
-        self.airbase_process.daemon = True
-        self.airbase_process.start()
-
-    def stop(self):
-        subprocess.call(['killall', 'airbase-ng'])
+        # the real pid of airbase-ng process = airbase_process.pid + 1...
+        os.kill(self.airbase_process.pid+1, signal.SIGUSR1)
 
     def launch_airbase(self):
+        # The default ssid at startup...
+        ssid_file = open('/tmp/ssid_file', 'w+')
+        ssid_file.write('default\n')
+        ssid_file.close()
+
         # Here, we are not using os.system(), cause we do not want run it in a shell
-        subprocess.call(['./bin/airbase-ng', '--essids', '/tmp/ssid_file', self.mon])
+        subprocess.call(['./bin/airbase-ng_static', '--essids', '/tmp/ssid_file', self.mon])
+
+    @staticmethod
+    def stop():
+        subprocess.call(['killall', 'airbase-ng_static'])
+
+
+def signal_handler(signal, frame):
+    print 'Exiting now...'
+    AP.stop()
+    sys.exit(0)
 
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
     print "########################################"
     print "    Now you can do things below:\n"
     print "  ap.add_ssid('Wifi')\t\t---- Add a ssid to broadcast. "
@@ -92,11 +93,13 @@ if __name__ == '__main__':
     print "  ap.remove_station('MAC')\t---- Remove a target station..."
     print "  ap.stop()\t\t\t---- Stop the AP. Or you can just exit directly\n"
 
-    mon = raw_input('Please specific the wlan interface(wlanX?): ')
+    mon = raw_input('Please specific the monitor wlan interface(wlanX?): ')
     wan = raw_input('Please specific the interface to be used for NAT Internet Access(ethX?): ')
+
+    ap = AP(mon)
+    time.sleep(1)
     os.system('ifconfig at0 192.168.11.1/24')
     os.system('ifconfig at0 up')
     iptables_nat(True, 'at0', wan)
 
-    ap = AP(mon)
 
