@@ -31,7 +31,9 @@ class Database:
         self.conn_main.commit()
 
     def get_recent_station(self, now_time, time_span, limit):
-        self.cursor_main.execute('select * from t_station where ((%d - unix_time) < %d) and vendor != "Unknown" order by unix_time DESC limit %d ' % (now_time, time_span, limit))
+        self.cursor_main.execute('select * from t_station where ((%d - unix_time) < %d) and '
+                                 'vendor != "Unknown" order by unix_time DESC limit %d '
+                                 % (now_time, time_span, limit))
         self.conn_main.commit()
         return self.cursor_main.fetchall()
 
